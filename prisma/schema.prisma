@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Shop {
+  id                String       @id @default(cuid())
+  slug              String       @unique
+  ownerId           String
+  name              String
+  barberName        String
+  location          String
+  imageUrl          String?
+  openHour          Int          @default(9)
+  closeHour         Int          @default(18)
+  workingDays       String[]     @default(["MO", "TU", "WE", "TH", "FR"])
+  timezone          String       @default("Europe/Rome")
+  stripeCustomerId  String?
+  subscriptionStatus String      @default("trialing")
+  trialEndsAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  services          Service[]
+  bookings          Booking[]
+
+  @@index([ownerId])
+  @@index([slug])
+}
+
+model Service {
+  id                String       @id @default(cuid())
+  shopId            String
+  name              String
+  priceCents        Int
+  durationMin       Int          @default(30)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  shop              Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  bookings          Booking[]
+
+  @@index([shopId])
+}
+
+model Booking {
+  id                String       @id @default(cuid())
+  shopId            String
+  serviceId         String
+  startTime         DateTime
+  customerName      String
+  customerPhone     String
+  status            String       @default("PENDING")
+  reminded          Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  shop              Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  service           Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, startTime])
+  @@index([shopId])
+  @@index([startTime])
+}
