@@ -1,0 +1,40 @@
+export const i18n = {
+  // Auth
+  login: 'Accedi',
+  signup: 'Registrati',
+  logout: 'Esci',
+  account: 'Account',
+  yourName: 'Il tuo nome',
+  yourPhone: 'Il tuo numero',
+
+  // Booking
+  selectService: 'Seleziona un servizio',
+  selectDate: 'Seleziona una data',
+  selectTime: 'Seleziona un orario',
+  confirm: 'Conferma',
+  confirmed: 'Confermato',
+  pending: 'In attesa',
+  cancelled: 'Annullato',
+  cancel: 'Annulla',
+  services: 'Servizi',
+  schedule: 'Orari',
+  add: 'Aggiungi',
+  save: 'Salva',
+  back: 'Indietro',
+  done: 'Fatto!',
+  loading: 'Caricamento...',
+  error: 'Errore, riprova più tardi',
+  noAvailableSlots: 'Nessun orario disponibile',
+  timeJustTaken: 'Questo orario è stato appena prenotato',
+  bookingConfirmed: 'Prenotazione confermata!',
+  youWillReceiveReminder: 'Riceverai un promemoria via WhatsApp',
+
+  // Dashboard
+  dashboard: 'Cruscotto',
+  bookingsToday: 'Prenotazioni oggi',
+  confirmedRevenue: 'Ricavi confermati',
+  clients: 'Clienti',
+  yourBookingPage: 'La tua pagina di prenotazione',
+  copyLink: 'Copia link',
+  recentBookings: 'Prenotazioni recenti',
+};
