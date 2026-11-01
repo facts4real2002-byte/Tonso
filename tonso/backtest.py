@@ -26,7 +26,8 @@ def run(df: pd.DataFrame, threshold: float = 40, tp: float = 0.01, sl: float = 0
         max_bars: int = 24, fee: float = 0.001, slippage: float = 0.0005,
         risk_per_trade: float = 1.0, allow_short: bool = True,
         daily_target: float | None = None, daily_stop: float | None = None,
-        max_trades_per_day: int | None = None) -> BacktestResult:
+        max_trades_per_day: int | None = None, use_checks: bool = False,
+        check_kwargs: dict | None = None) -> BacktestResult:
     """tp/sl janë në përqindje (0.01 = 1%). risk_per_trade = pjesa e kapitalit në çdo tregti.
 
     Rregulli ditor (opsional):
@@ -35,9 +36,19 @@ def run(df: pd.DataFrame, threshold: float = 40, tp: float = 0.01, sl: float = 0
                      automatikisht që asnjë tregti të mos e kalojë këtë kufi (përveç gap-eve).
       Kur ka rregull ditor, çdo tregti mbyllet më së voni në fund të ditës.
     """
-    d = score_frame(df)
-    o, h, l, c, s = (d[k].to_numpy() for k in ("open", "high", "low", "close", "score"))
     cost = fee + slippage  # për çdo anë
+    if use_checks:  # hyrje vetëm kur kalojnë të 5 verifikimet
+        from .checks import evaluate
+        kw = {"threshold": threshold, "tp": tp, "sl": sl, "horizon": max_bars, "fee": cost}
+        d = evaluate(df, **{**kw, **(check_kwargs or {})})
+        entry_sig = d["entry"].to_numpy()
+    else:
+        d = score_frame(df)
+        sc = d["score"].to_numpy()
+        entry_sig = np.where(sc >= threshold, 1, np.where(sc <= -threshold, -1, 0))
+    if not allow_short:
+        entry_sig = np.maximum(entry_sig, 0)
+    o, h, l, c = (d[k].to_numpy() for k in ("open", "high", "low", "close"))
     day = d.index.normalize()
     day_rules = daily_target is not None or daily_stop is not None or max_trades_per_day is not None
     # indeksi i qiririt të fundit të çdo dite
@@ -56,7 +67,7 @@ def run(df: pd.DataFrame, threshold: float = 40, tp: float = 0.01, sl: float = 0
         if day_locked:
             i = last_bar_of_day[i] + 1
             continue
-        side = 1 if s[i] >= threshold else -1 if (allow_short and s[i] <= -threshold) else 0
+        side = int(entry_sig[i])
         if side == 0:
             i += 1
             continue

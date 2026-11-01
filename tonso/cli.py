@@ -13,6 +13,7 @@ import sys
 
 from . import data
 from .backtest import run as run_backtest
+from .checks import checklist
 from .scenarios import historical_signal_odds, monte_carlo
 from .signals import latest_signal, score_frame
 
@@ -46,6 +47,12 @@ def cmd_analyze(args) -> None:
     for r in sig.reasons:
         print(f"  • {r}")
 
+    action, items, _ = checklist(df, threshold=max(args.threshold, 60), tp=tp, sl=sl, horizon=horizon)
+    passed = sum(ok for _, ok, _ in items)
+    print(f"\n--- 5 verifikimet ({passed}/5) → {action} ---")
+    for name, ok, det in items:
+        print(f"  {'✅' if ok else '❌'} {name:<28} {det}")
+
     direction = -1 if sig.action == "SELL" else 1
     side_name = "SHORT" if direction == -1 else "LONG"
     mc = monte_carlo(df["close"], horizon=horizon, tp=tp, sl=sl, direction=direction)
@@ -77,7 +84,7 @@ def cmd_backtest(args) -> None:
                        fee=args.fee / 100, risk_per_trade=args.risk, allow_short=not args.long_only,
                        daily_target=args.daily_target / 100 if args.daily_target else None,
                        daily_stop=args.daily_stop / 100 if args.daily_stop else None,
-                       max_trades_per_day=args.max_trades or None)
+                       max_trades_per_day=args.max_trades or None, use_checks=args.checks)
     print(f"\n=== Backtest {args.symbol if not args.synthetic else 'SINTETIK'} [{args.interval}] "
           f"{df.index[0].date()} → {df.index[-1].date()} ===")
     for k, v in res.stats.items():
@@ -89,6 +96,50 @@ def cmd_backtest(args) -> None:
     if args.trades and len(res.trades):
         print(res.trades.tail(20).to_string(index=False))
     print()
+
+
+def cmd_paper(args) -> None:
+    import time
+
+    from .paper import Config, PaperTrader
+
+    cfg = Config(symbol=args.symbol, interval=args.interval, start_capital=args.capital,
+                 tp=args.tp / 100, sl=args.sl / 100, horizon=BARS_PER_DAY.get(args.interval, 24),
+                 threshold=args.threshold, daily_target=args.daily_target / 100,
+                 daily_stop=args.daily_stop / 100, max_trades=args.max_trades,
+                 use_checks=not args.no_checks, allow_short=not args.long_only)
+
+    if args.replay:  # simulim i shpejtë qiri pas qiriri
+        df = data.synthetic(n=6000, freq=args.interval) if args.replay == "synthetic" else data.load_csv(args.replay)
+        cfg.symbol = "REPLAY"
+        trader = PaperTrader(cfg, args.state_dir, notify_fn=lambda _: None)
+        sig = trader.signals(df)  # pa lookahead (testuar), prandaj mund ta llogarisim një herë
+        start = 400
+        trader.step(df.iloc[:start], sig)
+        for k in range(start + 1, len(df) + 1):
+            for e in trader.step(df.iloc[:k], sig):
+                print(f"{df.index[k - 1]}  {e}")
+        print("\n" + trader.summary())
+        return
+
+    trader = PaperTrader(cfg, args.state_dir)
+    print(f"Paper trading {cfg.symbol} {cfg.interval} – gjendja: {trader.state_path}")
+    step = {"m": 60, "h": 3600, "d": 86400}[args.interval[-1]] * int(args.interval[:-1])
+    while True:
+        try:
+            df = data.drop_open_candle(data.fetch_binance(cfg.symbol, cfg.interval, 1000))
+            for e in trader.step(df):
+                print(f"{df.index[-1]}  {e}")
+            print(f"{pd_now()}  {trader.summary()}")
+        except RuntimeError as err:
+            print(f"Gabim rrjeti: {err} – provoj sërish")
+        if args.once:
+            return
+        time.sleep(step - time.time() % step + 5)  # prit mbylljen e qiririt të radhës
+
+
+def pd_now() -> str:
+    return data.pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M")
 
 
 def main(argv=None) -> int:
@@ -113,10 +164,27 @@ def main(argv=None) -> int:
     bt.add_argument("--daily-stop", type=float, default=0, help="Humbja maksimale e ditës në %% (p.sh. 1)")
     bt.add_argument("--max-trades", type=int, default=0, help="Maksimumi i tregtive në ditë")
     bt.add_argument("--trades", action="store_true", help="Shfaq 20 tregtitë e fundit")
+    bt.add_argument("--checks", action="store_true", help="Hyr vetëm kur kalojnë 5 verifikimet")
+
+    pp = sub.add_parser("paper", help="Tregtim provë live (pa para reale) me rregullat ditore")
+    pp.add_argument("--symbol", default="BTCUSDT")
+    pp.add_argument("--interval", default="1h", choices=list(BARS_PER_DAY))
+    pp.add_argument("--capital", type=float, default=1000)
+    pp.add_argument("--tp", type=float, default=1.0)
+    pp.add_argument("--sl", type=float, default=1.0)
+    pp.add_argument("--threshold", type=float, default=60)
+    pp.add_argument("--daily-target", type=float, default=1.0)
+    pp.add_argument("--daily-stop", type=float, default=1.0)
+    pp.add_argument("--max-trades", type=int, default=5)
+    pp.add_argument("--no-checks", action="store_true", help="Përdor vetëm score-in, pa 5 verifikimet")
+    pp.add_argument("--long-only", action="store_true")
+    pp.add_argument("--state-dir", default="paper_state")
+    pp.add_argument("--once", action="store_true", help="Një hap dhe dil (për cron)")
+    pp.add_argument("--replay", help="Riluaj një CSV qiri pas qiriri (ose 'synthetic') – pa internet")
 
     args = p.parse_args(argv)
     try:
-        {"analyze": cmd_analyze, "backtest": cmd_backtest}[args.cmd](args)
+        {"analyze": cmd_analyze, "backtest": cmd_backtest, "paper": cmd_paper}[args.cmd](args)
     except RuntimeError as e:
         print(f"Gabim: {e}\nProvo --csv skedar.csv ose --synthetic", file=sys.stderr)
         return 1

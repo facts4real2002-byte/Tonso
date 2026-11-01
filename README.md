@@ -40,6 +40,34 @@ python -m tonso backtest --symbol BTCUSDT --daily-target 1 --daily-stop 1 --max-
 - Çdo tregti mbyllet më së voni në fund të ditës.
 - Backtest-i tregon `dite_target_arritur_%` dhe `dite_stop_goditur_%`. Që sistemi të jetë fitimprurës, ditët me +1% duhet të jenë **më shumë** se ditët me −1%.
 
+### 5 verifikimet para hyrjes
+
+`analyze` tregon listën e kontrollit me ✅/❌. Tregtia hapet **vetëm nëse kalojnë të 5**:
+
+1. **Trendi në kohë më të madhe**: çmimi në anën e duhur të EMA50 në kohë 4× më të madhe.
+2. **Sinjali hyrës**: score ≥ +60 (BUY) ose ≤ −60 (SELL).
+3. **Volumi**: ≥ 1.2× mesatarja.
+4. **Rrezik/volatilitet**: SL jashtë zhurmës (SL ≥ ATR%), dhe hyrja jo e vonuar (≤ 1.5×ATR nga EMA20).
+5. **Probabiliteti**: i njëjti setup në të kaluarën ka ≥ 30 raste, dhe P(TP para SL) mbi pikën e barazimit pas tarifave. Me TP 1% / SL 1% dhe 0.15% kosto për anë, kjo pikë është **65%**.
+
+```bash
+python -m tonso backtest --symbol BTCUSDT --checks --daily-target 1 --daily-stop 1 --max-trades 5
+```
+
+Me të dhëna sintetike, filtri e uli humbjen maksimale nga **−60% në −1% deri −4%**, sepse refuzon tregtitë pa avantazh të provuar. Por nuk krijon fitim vetë: avantazhi duhet të ekzistojë në tregun real.
+
+### Tregtim provë (paper trading), pa para reale
+
+```bash
+python -m tonso paper --symbol BTCUSDT --interval 1h            # live, kontrollon çdo orë
+python -m tonso paper --symbol BTCUSDT --interval 1h --once     # një hap (për cron)
+python -m tonso paper --replay synthetic                        # simulim i shpejtë pa internet
+```
+
+- I njëjti rregull: 5 verifikimet, +1% → ndalo, −1% → ndalo, maksimumi 5 tregti në ditë.
+- Gjendja ruhet në `paper_state/` (JSON + CSV i tregtive), kështu që mund ta ndalosh e rinisësh.
+- **Telegram**: vendos `TELEGRAM_BOT_TOKEN` dhe `TELEGRAM_CHAT_ID` për njoftime për çdo hyrje/dalje.
+
 Parametra të dobishëm: `--threshold` (sa i fortë duhet sinjali, default 40), `--tp`, `--sl` (në %), `--horizon` (qirinj), `--fee`, `--risk` (pjesa e kapitalit për tregti), `--long-only`.
 
 ### Shembull rezultati
@@ -82,6 +110,8 @@ tonso/
   signals.py     score −100..+100 → BUY/SELL/HOLD + SL/TP me ATR
   scenarios.py   Monte Carlo, skenarë, probabilitet historik i sinjalit
   backtest.py    backtest me tarifa, statistika ditore, objektivi 1%
+  checks.py      5 verifikimet (pa parë të ardhmen)
+  paper.py       tregtim provë live + Telegram
   cli.py         komandat `analyze` dhe `backtest`
 tests/           python -m unittest discover -s tests
 ```

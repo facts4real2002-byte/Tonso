@@ -38,6 +38,15 @@ def fetch_binance(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 10
     return df
 
 
+def drop_open_candle(df: pd.DataFrame, now: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Heq qiririn e fundit nëse ende nuk është mbyllur (Binance e kthen qiririn në formim)."""
+    if len(df) < 2:
+        return df
+    step = df.index[-1] - df.index[-2]
+    now = now or pd.Timestamp.now(tz="UTC")
+    return df.iloc[:-1] if df.index[-1] + step > now else df
+
+
 def load_csv(path: str) -> pd.DataFrame:
     """Lexon një CSV me kolona: time/date, open, high, low, close, volume."""
     df = pd.read_csv(path)
@@ -53,7 +62,8 @@ def load_csv(path: str) -> pd.DataFrame:
 
 
 def synthetic(n: int = 2000, seed: int = 42, start_price: float = 100.0,
-              drift: float = 0.0, vol: float = 0.006, freq: str = "1h") -> pd.DataFrame:
+              drift: float = 0.0, vol: float = 0.006, freq: str = "1h",
+              momentum: float = 0.0) -> pd.DataFrame:
     """Gjeneron të dhëna sintetike (random walk me regjime volatiliteti).
 
     Shërben VETËM për të testuar kodin – nuk vërteton asnjë avantazh në treg real.
@@ -61,6 +71,9 @@ def synthetic(n: int = 2000, seed: int = 42, start_price: float = 100.0,
     rng = np.random.default_rng(seed)
     regime = np.repeat(rng.choice([0.6, 1.0, 1.8], size=n // 100 + 1), 100)[:n]
     rets = rng.standard_t(df=4, size=n) / np.sqrt(2) * vol * regime + drift
+    if momentum:  # autokorrelacion: krijon një "model" që një strategji mund ta kapë (vetëm për teste)
+        for t in range(1, n):
+            rets[t] += momentum * rets[t - 1]
     close = start_price * np.exp(np.cumsum(rets))
     open_ = np.concatenate([[start_price], close[:-1]])
     spread = np.abs(rng.normal(0, vol * 0.6, n)) * close

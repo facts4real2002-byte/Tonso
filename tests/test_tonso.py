@@ -67,6 +67,47 @@ class TestTonso(unittest.TestCase):
         capped = run(df, max_trades_per_day=2)
         self.assertLessEqual(capped.trades.groupby(capped.trades["entry_time"].dt.normalize()).size().max(), 2)
 
+    def test_checks_no_lookahead(self):
+        from tonso.checks import evaluate
+        df = data.synthetic(n=2500, seed=5, momentum=0.2)
+        full = evaluate(df)
+        part = evaluate(df.iloc[:1800])
+        cols = ["entry", "buy_passed", "sell_passed", "htf_ema"]
+        np.testing.assert_allclose(full[cols].iloc[:1800].to_numpy(float), part[cols].to_numpy(float), equal_nan=True)
+
+    def test_checklist_has_five_items(self):
+        from tonso.checks import checklist
+        action, items, _ = checklist(self.df)
+        self.assertEqual(len(items), 5)
+        self.assertIn(action, {"BUY", "SELL", "PRIT"})
+
+    def test_drop_open_candle(self):
+        df = self.df
+        now = df.index[-1] + (df.index[1] - df.index[0]) / 2  # qiriri i fundit ende hapur
+        self.assertEqual(len(data.drop_open_candle(df, now)), len(df) - 1)
+        later = df.index[-1] + (df.index[1] - df.index[0]) * 2
+        self.assertEqual(len(data.drop_open_candle(df, later)), len(df))
+
+    def test_paper_trader_daily_cap_and_resume(self):
+        import tempfile
+        from tonso.paper import Config, PaperTrader
+        df = data.synthetic(n=1500, seed=9)
+        cfg = Config(symbol="T", use_checks=False, threshold=40)
+        with tempfile.TemporaryDirectory() as tmp:
+            tr = PaperTrader(cfg, tmp, notify_fn=lambda _: None)
+            sig = tr.signals(df)
+            tr.step(df.iloc[:300], sig)
+            for k in range(301, 900):
+                tr.step(df.iloc[:k], sig)
+            # rinis nga skedari i gjendjes dhe vazhdo
+            tr2 = PaperTrader(cfg, tmp, notify_fn=lambda _: None)
+            self.assertAlmostEqual(tr2.state.capital, tr.state.capital)
+            for k in range(900, len(df) + 1):
+                tr2.step(df.iloc[:k], sig)
+            days = [r for _, r in tr2.state.history]
+            self.assertTrue(days)
+            self.assertGreaterEqual(min(days), -1.0 - 1e-6)  # kurrë më keq se -1% në ditë
+
 
 if __name__ == "__main__":
     unittest.main()
