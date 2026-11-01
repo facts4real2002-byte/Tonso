@@ -36,6 +36,7 @@ class Funding:
     rate: float            # p.sh. 0.0001 = 0.01% për periudhë
     interval_hours: float
     mark_price: float = 0.0
+    volume: float | None = None  # volumi 24h i futures në USDT (None = i panjohur)
 
     @property
     def daily(self) -> float:
@@ -100,7 +101,8 @@ def parse_bybit_funding(data, intervals: dict[str, float] | None = None) -> dict
     for r in data.get("result", {}).get("list", []):
         s = r.get("symbol", "")
         if s.endswith("USDT") and r.get("fundingRate") not in (None, ""):
-            out[_sym(s[:-4])] = Funding(_f(r["fundingRate"]), intervals.get(s, 8.0), _f(r.get("markPrice")))
+            out[_sym(s[:-4])] = Funding(_f(r["fundingRate"]), intervals.get(s, 8.0), _f(r.get("markPrice")),
+                                        _f(r.get("turnover24h")) if r.get("turnover24h") is not None else None)
     return out
 
 
@@ -128,7 +130,9 @@ def parse_kucoin_funding(data) -> dict[str, Funding]:
         s = r.get("symbol", "")
         if s.endswith("USDTM") and r.get("fundingFeeRate") is not None:
             hours = _f(r.get("fundingRateGranularity")) / 3_600_000 or 8.0  # ms -> orë
-            out[_sym(s[:-5])] = Funding(_f(r["fundingFeeRate"]), hours, _f(r.get("markPrice")))
+            vol = r.get("turnoverOf24h")
+            out[_sym(s[:-5])] = Funding(_f(r["fundingFeeRate"]), hours, _f(r.get("markPrice")),
+                                        _f(vol) if vol is not None else None)
     return out
 
 
@@ -141,17 +145,27 @@ def parse_gate_spot(rows) -> dict[str, Quote]:
     return out
 
 
-def parse_gate_funding(rows) -> dict[str, Funding]:
+def parse_gate_funding(rows, tickers=None) -> dict[str, Funding]:
+    vols = {t.get("contract"): t.get("volume_24h_quote") for t in (tickers or [])}
     out = {}
     for r in rows:
         base, _, quote = r.get("name", "").partition("_")
         if quote == "USDT" and r.get("funding_rate") not in (None, "") and not r.get("in_delisting"):
             hours = _f(r.get("funding_interval")) / 3600 or 8.0
-            out[_sym(base)] = Funding(_f(r["funding_rate"]), hours, _f(r.get("mark_price")))
+            v = vols.get(r.get("name"))
+            out[_sym(base)] = Funding(_f(r["funding_rate"]), hours, _f(r.get("mark_price")),
+                                      _f(v) if v is not None else None)
     return out
 
 
 # ---------------- rrjeti ----------------
+
+def _safe(fn):
+    try:
+        return fn()
+    except Exception:
+        return None
+
 
 def _binance_intervals() -> dict[str, float]:
     try:  # vetëm simbolet me interval jo-standard shfaqen këtu
@@ -190,7 +204,8 @@ FUNDING = {
     "binance": lambda: parse_binance_funding(get_json("https://fapi.binance.com/fapi/v1/premiumIndex"), _binance_intervals()),
     "bybit": lambda: parse_bybit_funding(get_json("https://api.bybit.com/v5/market/tickers?category=linear"), _bybit_intervals()),
     "kucoin": lambda: parse_kucoin_funding(get_json("https://api-futures.kucoin.com/api/v1/contracts/active")),
-    "gate": lambda: parse_gate_funding(get_json("https://api.gateio.ws/api/v4/futures/usdt/contracts")),
+    "gate": lambda: parse_gate_funding(get_json("https://api.gateio.ws/api/v4/futures/usdt/contracts"),
+                                       _safe(lambda: get_json("https://api.gateio.ws/api/v4/futures/usdt/tickers"))),
 }
 
 

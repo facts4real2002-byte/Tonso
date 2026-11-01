@@ -74,6 +74,19 @@ class TestScanner(unittest.TestCase):
         self.assertEqual((sp.long_on, sp.short_on), ("bybit", "binance"))
         self.assertAlmostEqual(sp.daily_diff, 0.0012)
 
+    def test_funding_volume_filter_and_suspicious(self):
+        fund = {"kucoin": {"A/USDT": ex.Funding(0.002, 8, volume=5e6), "B/USDT": ex.Funding(0.001, 8, volume=1e4)},
+                "gate": {"A/USDT": ex.Funding(-0.001, 8, volume=5e6), "B/USDT": ex.Funding(-0.001, 8, volume=5e6)}}
+        sp = arb.scan_funding_spread(fund)
+        self.assertEqual([s.symbol for s in sp], ["A/USDT"])  # B pa likuiditet te kucoin
+        self.assertTrue(sp[0].suspicious)                      # 0.9%/ditë diferencë
+        carry = arb.scan_carry(fund)
+        self.assertEqual([c.symbol for c in carry], ["A/USDT"])
+        gf = ex.parse_gate_funding([{"name": "A_USDT", "funding_rate": "0.0001", "funding_interval": 14400}],
+                                   [{"contract": "A_USDT", "volume_24h_quote": "123"}])
+        self.assertEqual(gf["A/USDT"].volume, 123)
+        self.assertEqual(gf["A/USDT"].interval_hours, 4)
+
     def test_fetch_all_reports_errors(self):
         def boom():
             raise OSError("blocked")

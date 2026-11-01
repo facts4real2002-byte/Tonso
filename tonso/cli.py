@@ -155,7 +155,7 @@ def cmd_scan(args) -> None:
             raise RuntimeError("Asnjë exchange nuk u përgjigj: " + "; ".join(f"{k}: {v}" for k, v in errors.items()))
         spot_arbs = arb.scan_spot(spot, min_volume=args.min_volume)
         carries = arb.scan_carry(fund, spot, min_volume=args.min_volume)
-        spreads = arb.scan_funding_spread(fund)
+        spreads = arb.scan_funding_spread(fund, min_volume=args.min_volume)
         print(f"\n##### {pd_now()} UTC | spot: {', '.join(spot)} | futures: {', '.join(fund)}")
         print(arb.format_report(spot_arbs, carries, spreads, errors, args.top))
 

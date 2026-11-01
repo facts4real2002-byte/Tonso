@@ -17,7 +17,13 @@ from dataclasses import dataclass
 
 from .exchanges import PERP_TAKER_FEE, TAKER_FEE, Funding, Quote
 
-SUSPICIOUS_GAP = 0.05  # >5% zakonisht = token tjetër me të njëjtin emër, ose depozita/tërheqje të bllokuara
+SUSPICIOUS_GAP = 0.05
+SUSPICIOUS_FUNDING_DAILY = 0.005  # >0.5%/ditë diferencë = zakonisht kontrata të ndryshme ose treg i paqëndrueshëm
+
+
+def _liquid(f: Funding, min_volume: float) -> bool:
+    """Volumi i panjohur (None) lejohet, por volumi i njohur duhet të kalojë pragun."""
+    return f.volume is None or f.volume >= min_volume  # >5% zakonisht = token tjetër me të njëjtin emër, ose depozita/tërheqje të bllokuara
 
 
 @dataclass
@@ -54,6 +60,7 @@ class FundingSpread:
     annual_diff: float
     cost: float
     breakeven_days: float
+    suspicious: bool = False
 
 
 def scan_spot(quotes: dict[str, dict[str, Quote]], min_volume: float = 1_000_000,
@@ -90,7 +97,7 @@ def scan_carry(funding: dict[str, dict[str, Funding]], spot: dict[str, dict[str,
     for ex, rates in funding.items():
         spot_ex = (spot or {}).get(ex)
         for sym, f in rates.items():
-            if f.rate <= 0:
+            if f.rate <= 0 or not _liquid(f, min_volume):
                 continue
             if spot is not None:
                 q = (spot_ex or {}).get(sym)
@@ -102,10 +109,12 @@ def scan_carry(funding: dict[str, dict[str, Funding]], spot: dict[str, dict[str,
     return sorted(out, key=lambda c: c.annual, reverse=True)
 
 
-def scan_funding_spread(funding: dict[str, dict[str, Funding]]) -> list[FundingSpread]:
+def scan_funding_spread(funding: dict[str, dict[str, Funding]], min_volume: float = 1_000_000) -> list[FundingSpread]:
     symbols: dict[str, dict[str, Funding]] = {}
     for ex, rates in funding.items():
         for sym, f in rates.items():
+            if not _liquid(f, min_volume):
+                continue
             symbols.setdefault(sym, {})[ex] = f
     out = []
     for sym, by_ex in symbols.items():
@@ -117,7 +126,7 @@ def scan_funding_spread(funding: dict[str, dict[str, Funding]]) -> list[FundingS
         if diff <= 0:
             continue
         cost = 2 * PERP_TAKER_FEE.get(lo, 0.0006) + 2 * PERP_TAKER_FEE.get(hi, 0.0006)
-        out.append(FundingSpread(sym, lo, hi, diff, diff * 365, cost, cost / diff))
+        out.append(FundingSpread(sym, lo, hi, diff, diff * 365, cost, cost / diff, diff > SUSPICIOUS_FUNDING_DAILY))
     return sorted(out, key=lambda s: s.daily_diff, reverse=True)
 
 
@@ -144,9 +153,14 @@ def format_report(spot_arbs, carries, spreads, errors: dict | None = None, top: 
                  f"barazim pas {c.breakeven_days:.1f} ditësh")
 
     L.append("\n=== 3. DIFERENCA E FUNDING-UT (long perp te i ulëti, short te i larti) ===")
-    for s in spreads[:top]:
+    ok_spreads = [s for s in spreads if not s.suspicious]
+    for s in ok_spreads[:top]:
         L.append(f"  {s.symbol:<12} long {s.long_on:<8} short {s.short_on:<8} "
                  f"{s.daily_diff * 100:.3f}%/ditë  {s.annual_diff * 100:6.1f}%/vit  barazim pas {s.breakeven_days:.1f} ditësh")
+    sus = [s for s in spreads if s.suspicious]
+    if sus:
+        L.append(f"  ⚠ {len(sus)} diferenca >0.5%/ditë u përjashtuan (kontrata të ndryshme / treg i paqëndrueshëm): "
+                 + ", ".join(f"{s.symbol} {s.daily_diff * 100:.2f}%" for s in sus[:6]))
     L.append("\n⚠ Funding-u ndryshon çdo periudhë: norma e sotme nuk garantohet nesër. "
              "Kontrollo gjithmonë thellësinë e librit dhe statusin e depozitave/tërheqjeve.")
     return "\n".join(L)

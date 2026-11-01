@@ -7,9 +7,11 @@ name: Arbitrage & funding scan
 
 on:
   workflow_dispatch:
-  push:  # ekzekutohet edhe kur ndryshon vetë ky skedar në degë (për provë)
+  push:  # ekzekutohet kur ndryshon skaneri (për provë)
     paths:
       - ".github/workflows/scan.yml"
+      - "tonso/arb.py"
+      - "tonso/exchanges.py"
   # schedule:
   #   - cron: "17 */2 * * *"
 
