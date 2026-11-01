@@ -74,7 +74,10 @@ def cmd_backtest(args) -> None:
     df = _load(args)
     res = run_backtest(df, threshold=args.threshold, tp=args.tp / 100, sl=args.sl / 100,
                        max_bars=args.horizon or BARS_PER_DAY.get(args.interval, 24),
-                       fee=args.fee / 100, risk_per_trade=args.risk, allow_short=not args.long_only)
+                       fee=args.fee / 100, risk_per_trade=args.risk, allow_short=not args.long_only,
+                       daily_target=args.daily_target / 100 if args.daily_target else None,
+                       daily_stop=args.daily_stop / 100 if args.daily_stop else None,
+                       max_trades_per_day=args.max_trades or None)
     print(f"\n=== Backtest {args.symbol if not args.synthetic else 'SINTETIK'} [{args.interval}] "
           f"{df.index[0].date()} → {df.index[-1].date()} ===")
     for k, v in res.stats.items():
@@ -106,6 +109,9 @@ def main(argv=None) -> int:
     bt.add_argument("--fee", type=float, default=0.1, help="Tarifa për anë në %% (default 0.1)")
     bt.add_argument("--risk", type=float, default=1.0, help="Pjesa e kapitalit për tregti (0-1)")
     bt.add_argument("--long-only", action="store_true")
+    bt.add_argument("--daily-target", type=float, default=0, help="Ndalo për sot pas +X%% neto (p.sh. 1)")
+    bt.add_argument("--daily-stop", type=float, default=0, help="Humbja maksimale e ditës në %% (p.sh. 1)")
+    bt.add_argument("--max-trades", type=int, default=0, help="Maksimumi i tregtive në ditë")
     bt.add_argument("--trades", action="store_true", help="Shfaq 20 tregtitë e fundit")
 
     args = p.parse_args(argv)

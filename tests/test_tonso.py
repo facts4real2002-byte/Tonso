@@ -56,6 +56,17 @@ class TestTonso(unittest.TestCase):
             self.assertLess(paid.stats["kthimi_total_%"], free.stats["kthimi_total_%"])
         self.assertIn("dite_me_>=1%_%", paid.stats)
 
+    def test_daily_target_and_stop(self):
+        df = data.synthetic(n=4000, seed=3)
+        res = run(df, daily_target=0.01, daily_stop=0.01)
+        self.assertGreaterEqual(res.stats["dita_me_e_keqe_%"], -1.0 - 1e-9)  # kurrë më keq se -1%/ditë
+        if len(res.trades):
+            per_day = res.trades.groupby(res.trades["exit_time"].dt.normalize()).size()
+            self.assertTrue((res.trades["entry_time"].dt.normalize() == res.trades["exit_time"].dt.normalize()).all())
+            self.assertGreater(len(per_day), 0)
+        capped = run(df, max_trades_per_day=2)
+        self.assertLessEqual(capped.trades.groupby(capped.trades["entry_time"].dt.normalize()).size().max(), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

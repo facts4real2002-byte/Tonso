@@ -29,6 +29,17 @@ python -m tonso analyze --csv te_dhenat.csv --interval 4h
 python -m tonso analyze --synthetic
 ```
 
+### Rregulli ditor: +1% → ndalo, −1% → ndalo
+
+```bash
+python -m tonso backtest --symbol BTCUSDT --daily-target 1 --daily-stop 1 --max-trades 5
+```
+
+- Kur fitimi i ditës arrin **+1% neto**, boti ndalon deri nesër.
+- Humbja e ditës **nuk e kalon kurrë −1%**: madhësia e pozicionit zvogëlohet automatikisht sipas buxhetit që mbetet.
+- Çdo tregti mbyllet më së voni në fund të ditës.
+- Backtest-i tregon `dite_target_arritur_%` dhe `dite_stop_goditur_%`. Që sistemi të jetë fitimprurës, ditët me +1% duhet të jenë **më shumë** se ditët me −1%.
+
 Parametra të dobishëm: `--threshold` (sa i fortë duhet sinjali, default 40), `--tp`, `--sl` (në %), `--horizon` (qirinj), `--fee`, `--risk` (pjesa e kapitalit për tregti), `--long-only`.
 
 ### Shembull rezultati
