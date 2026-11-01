@@ -1,0 +1,35 @@
+# Skaneri online në GitHub Actions – pa kompjuter të ndezur.
+# 1. Settings → Secrets and variables → Actions: shto TELEGRAM_BOT_TOKEN dhe TELEGRAM_CHAT_ID.
+# 2. Actions → "Arbitrage & funding scan" → Run workflow (manual).
+# 3. Për ta ekzekutuar automatikisht çdo 2 orë, hiq "#" para dy rreshtave "schedule".
+# Shënim: serverët e GitHub janë në SHBA – Binance futures dhe Bybit mund të refuzojnë lidhjen nga atje.
+name: Arbitrage & funding scan
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "17 */2 * * *"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests
+      - name: Scan
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m tonso scan --exchanges binance,okx,kucoin,gate,bybit --log scan_log.csv | tee scan_report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-report
+          path: |
+            scan_report.txt
+            scan_log.csv

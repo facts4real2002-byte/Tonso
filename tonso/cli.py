@@ -138,6 +138,49 @@ def cmd_paper(args) -> None:
         time.sleep(step - time.time() % step + 5)  # prit mbylljen e qiririt të radhës
 
 
+def cmd_scan(args) -> None:
+    import csv
+    import time
+    from pathlib import Path
+
+    from . import arb, exchanges
+    from .paper import notify
+
+    names = [n.strip() for n in args.exchanges.split(",")] if args.exchanges else None
+    while True:
+        spot, err1 = exchanges.fetch_all(exchanges.SPOT, names)
+        fund, err2 = exchanges.fetch_all(exchanges.FUNDING, names)
+        errors = {**err1, **{f"{k}-futures": v for k, v in err2.items()}}
+        if not spot and not fund:
+            raise RuntimeError("Asnjë exchange nuk u përgjigj: " + "; ".join(f"{k}: {v}" for k, v in errors.items()))
+        spot_arbs = arb.scan_spot(spot, min_volume=args.min_volume)
+        carries = arb.scan_carry(fund, spot, min_volume=args.min_volume)
+        spreads = arb.scan_funding_spread(fund)
+        print(f"\n##### {pd_now()} UTC | spot: {', '.join(spot)} | futures: {', '.join(fund)}")
+        print(arb.format_report(spot_arbs, carries, spreads, errors, args.top))
+
+        hits = [a for a in spot_arbs if a.net * 100 >= args.alert_net and not a.suspicious]
+        hits_c = [c for c in carries if c.annual * 100 >= args.alert_apr]
+        for a in hits:
+            notify(f"💱 ARB {a.symbol}: blej {a.buy_on} {a.buy_ask:.6g} → shit {a.sell_on} {a.sell_bid:.6g} | neto {a.net * 100:+.3f}%")
+        for c in hits_c[:3]:
+            notify(f"💰 FUNDING {c.symbol} @ {c.exchange}: {c.annual * 100:.0f}%/vit ({c.rate * 100:+.4f}%/{c.interval_hours:g}h)")
+        if args.log:  # histori, që të shohësh sa shpesh shfaqen mundësitë
+            path = Path(args.log)
+            new = not path.exists()
+            with path.open("a", newline="") as f:
+                w = csv.writer(f)
+                if new:
+                    w.writerow(["time", "type", "symbol", "where", "net_or_daily_pct", "annual_pct"])
+                for a in spot_arbs[:args.top]:
+                    w.writerow([pd_now(), "spot", a.symbol, f"{a.buy_on}->{a.sell_on}", round(a.net * 100, 4), ""])
+                for c in carries[:args.top]:
+                    w.writerow([pd_now(), "carry", c.symbol, c.exchange, round(c.daily * 100, 4), round(c.annual * 100, 2)])
+        if not args.loop:
+            return
+        time.sleep(args.loop)
+
+
 def pd_now() -> str:
     return data.pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M")
 
@@ -182,10 +225,20 @@ def main(argv=None) -> int:
     pp.add_argument("--once", action="store_true", help="Një hap dhe dil (për cron)")
     pp.add_argument("--replay", help="Riluaj një CSV qiri pas qiriri (ose 'synthetic') – pa internet")
 
+    sc = sub.add_parser("scan", help="Skaner arbitrazhi dhe funding-u (Binance, Bybit, OKX, KuCoin, Gate)")
+    sc.add_argument("--exchanges", help="p.sh. binance,bybit,okx (default: të gjitha)")
+    sc.add_argument("--min-volume", type=float, default=1_000_000, help="Volumi min 24h në USDT (default 1M)")
+    sc.add_argument("--top", type=int, default=10)
+    sc.add_argument("--loop", type=int, default=0, help="Përsërit çdo N sekonda")
+    sc.add_argument("--alert-net", type=float, default=0.15, help="Telegram kur arbitrazhi neto ≥ X%%")
+    sc.add_argument("--alert-apr", type=float, default=30, help="Telegram kur funding ≥ X%% në vit")
+    sc.add_argument("--log", help="Ruaj historinë në CSV")
+
     args = p.parse_args(argv)
     try:
-        {"analyze": cmd_analyze, "backtest": cmd_backtest, "paper": cmd_paper}[args.cmd](args)
+        {"analyze": cmd_analyze, "backtest": cmd_backtest, "paper": cmd_paper, "scan": cmd_scan}[args.cmd](args)
     except RuntimeError as e:
-        print(f"Gabim: {e}\nProvo --csv skedar.csv ose --synthetic", file=sys.stderr)
+        hint = "" if args.cmd == "scan" else "\nProvo --csv skedar.csv ose --synthetic"
+        print(f"Gabim: {e}{hint}", file=sys.stderr)
         return 1
     return 0

@@ -68,6 +68,25 @@ python -m tonso paper --replay synthetic                        # simulim i shpe
 - Gjendja ruhet në `paper_state/` (JSON + CSV i tregtive), kështu që mund ta ndalosh e rinisësh.
 - **Telegram**: vendos `TELEGRAM_BOT_TOKEN` dhe `TELEGRAM_CHAT_ID` për njoftime për çdo hyrje/dalje.
 
+### Skaneri i arbitrazhit dhe funding-ut
+
+Lidhet me API-të **publike** të **Binance, Bybit, OKX, KuCoin, Gate**. Nuk kërkon llogari as API key.
+
+```bash
+python -m tonso scan                                   # një skanim
+python -m tonso scan --loop 60 --log scan_log.csv      # çdo minutë + histori në CSV
+python -m tonso scan --exchanges binance,okx,gate --min-volume 5000000
+```
+
+Tregon tre lloje mundësish, të gjitha **neto pas tarifave**:
+1. **Arbitrazh spot**: blej te A, shit te B në të njëjtën kohë, me kapital të ndarë paraprakisht në të dy exchange-t. Diferencat >5% përjashtohen, sepse zakonisht janë token tjetër ose tërheqje të bllokuara.
+2. **Funding delta-neutral**: blej spot + short perpetual. Tregon kthimin vjetor dhe pas sa ditësh mbulohen tarifat.
+3. **Diferenca e funding-ut** ndërmjet exchange-ve.
+
+Telegram njofton kur arbitrazhi neto ≥ `--alert-net` (default 0.15%) ose funding-u ≥ `--alert-apr` (default 30%/vit).
+
+**Online, pa kompjuter:** workflow-i `.github/workflows/scan.yml` e ekzekuton skanerin në GitHub Actions dhe ruan raportin. Udhëzimet janë brenda skedarit.
+
 Parametra të dobishëm: `--threshold` (sa i fortë duhet sinjali, default 40), `--tp`, `--sl` (në %), `--horizon` (qirinj), `--fee`, `--risk` (pjesa e kapitalit për tregti), `--long-only`.
 
 ### Shembull rezultati
@@ -112,6 +131,8 @@ tonso/
   backtest.py    backtest me tarifa, statistika ditore, objektivi 1%
   checks.py      5 verifikimet (pa parë të ardhmen)
   paper.py       tregtim provë live + Telegram
+  exchanges.py   lidhja me 5 exchange (API publike)
+  arb.py         skaneri i arbitrazhit dhe funding-ut
   cli.py         komandat `analyze` dhe `backtest`
 tests/           python -m unittest discover -s tests
 ```
