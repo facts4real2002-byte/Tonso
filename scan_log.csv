@@ -1,0 +1,21 @@
+time,type,symbol,where,net_or_daily_pct,annual_pct
+2026-11-02 14:36,spot,ARIA/USDT,gate->kucoin,0.198,
+2026-11-02 14:36,spot,NIGHT/USDT,okx->kucoin,0.11,
+2026-11-02 14:36,spot,EVAA/USDT,gate->kucoin,-0.0698,
+2026-11-02 14:36,spot,ATOM/USDT,binance->kucoin,-0.0966,
+2026-11-02 14:36,spot,XLM/USDT,binance->okx,-0.1407,
+2026-11-02 14:36,spot,UAI/USDT,gate->kucoin,-0.1479,
+2026-11-02 14:36,spot,HUMA/USDT,binance->okx,-0.1576,
+2026-11-02 14:36,spot,UNI/USDT,okx->binance,-0.1588,
+2026-11-02 14:36,spot,AVAX/USDT,kucoin->binance,-0.1651,
+2026-11-02 14:36,spot,PAXG/USDT,binance->kucoin,-0.1662,
+2026-11-02 14:36,carry,PONS/USDT,gate,0.4854,177.17
+2026-11-02 14:36,carry,AIN/USDT,kucoin,0.3366,122.86
+2026-11-02 14:36,carry,EVAA/USDT,kucoin,0.1728,63.07
+2026-11-02 14:36,carry,AIN/USDT,gate,0.1236,45.11
+2026-11-02 14:36,carry,EVAA/USDT,gate,0.0813,29.67
+2026-11-02 14:36,carry,JCT/USDT,kucoin,0.0756,27.59
+2026-11-02 14:36,carry,KCS/USDT,kucoin,0.0585,21.35
+2026-11-02 14:36,carry,SOON/USDT,gate,0.0396,14.45
+2026-11-02 14:36,carry,BTC/USDT,kucoin,0.03,10.95
+2026-11-02 14:36,carry,SOL/USDT,kucoin,0.03,10.95
