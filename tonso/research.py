@@ -36,21 +36,19 @@ def gate_universe(n: int = 60, min_volume: float = 5_000_000) -> list[str]:
 def gate_funding_history(contract: str, days: int = 180) -> pd.Series:
     """Pagesat e funding-ut (norma për periudhë) me kohën e pagesës, për `days` ditët e fundit."""
     since = int(time.time()) - days * 86400
-    out, to = [], None
-    for _ in range(20):
-        url = f"{GATE}/futures/usdt/funding_rate?contract={contract}&limit=1000"
-        if to:
-            url += f"&from={since}&to={to}"
-        rows = get_json(url)
+    out, to = [], int(time.time())
+    for _ in range(60):  # API kthen maksimum ~100 rreshta për kërkesë -> faqosje me `to`
+        rows = get_json(f"{GATE}/futures/usdt/funding_rate?contract={contract}&limit=1000&from={since}&to={to}")
         if not rows:
             break
         out.extend(rows)
         oldest = min(int(r["t"]) for r in rows)
-        if oldest <= since or len(rows) < 1000:
+        if oldest <= since or oldest - 1 >= to:
             break
         to = oldest - 1
     if not out:
         return pd.Series(dtype=float)
+    out = {int(r["t"]): r for r in out}.values()  # pa dublikime
     s = pd.Series({pd.Timestamp(int(r["t"]), unit="s", tz="UTC"): float(r["r"]) for r in out}).sort_index()
     return s[s.index >= pd.Timestamp(since, unit="s", tz="UTC")]
 
