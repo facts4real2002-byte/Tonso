@@ -1,19 +1,27 @@
-# Skaneri online në GitHub Actions – pa kompjuter të ndezur.
-# 1. Settings → Secrets and variables → Actions: shto TELEGRAM_BOT_TOKEN dhe TELEGRAM_CHAT_ID.
-# 2. Actions → "Arbitrage & funding scan" → Run workflow (manual).
-# 3. Për ta ekzekutuar automatikisht çdo 2 orë, hiq "#" para dy rreshtave "schedule".
-# Shënim: serverët e GitHub janë në SHBA – Binance futures dhe Bybit mund të refuzojnë lidhjen nga atje.
+# Skaneri online në GitHub Actions – punon gjithë kohën, pa kompjuter të ndezur.
+# - Ekzekutohet çdo orë (minuta 17) kur ky skedar është në degën kryesore (main).
+# - Historia e çdo skanimi ruhet në degën `scan-data` (skedari scan_log.csv).
+# - Telegram: Settings → Secrets and variables → Actions → shto TELEGRAM_BOT_TOKEN dhe TELEGRAM_CHAT_ID.
+# - Për ta ndalur: Actions → "Arbitrage & funding scan" → ⋯ → Disable workflow.
+# Shënim: serverët e GitHub janë në SHBA – Binance futures dhe Bybit refuzojnë lidhjen nga atje.
 name: Arbitrage & funding scan
 
 on:
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
-  push:  # ekzekutohet kur ndryshon skaneri (për provë)
+  push:  # edhe kur ndryshon skaneri (për provë)
     paths:
       - ".github/workflows/scan.yml"
       - "tonso/arb.py"
       - "tonso/exchanges.py"
-  # schedule:
-  #   - cron: "17 */2 * * *"
+
+permissions:
+  contents: write  # për të ruajtur historinë në degën scan-data
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
 
 jobs:
   scan:
@@ -27,6 +35,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests
       - name: Scan
+        shell: bash
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -38,3 +47,20 @@ jobs:
           path: |
             scan_report.txt
             scan_log.csv
+      - name: Save history to scan-data branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mv scan_log.csv "$RUNNER_TEMP/new.csv"
+          if git fetch -q origin scan-data; then
+            git checkout -q -B scan-data origin/scan-data
+            tail -n +2 "$RUNNER_TEMP/new.csv" >> scan_log.csv
+          else
+            git checkout -q --orphan scan-data
+            git rm -rq --cached .
+            cp "$RUNNER_TEMP/new.csv" scan_log.csv
+          fi
+          git add -f scan_log.csv
+          git commit -qm "scan $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q origin scan-data

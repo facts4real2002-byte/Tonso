@@ -85,7 +85,7 @@ Tregon tre lloje mundësish, të gjitha **neto pas tarifave**:
 
 Telegram njofton kur arbitrazhi neto ≥ `--alert-net` (default 0.15%) ose funding-u ≥ `--alert-apr` (default 30%/vit).
 
-**Online, pa kompjuter:** workflow-i `.github/workflows/scan.yml` e ekzekuton skanerin në GitHub Actions dhe ruan raportin. Udhëzimet janë brenda skedarit.
+**Online, gjithë kohën:** workflow-i `.github/workflows/scan.yml` e ekzekuton skanerin **çdo orë** në GitHub Actions. Historia ruhet në degën `scan-data` (`scan_log.csv`). Udhëzimet janë brenda skedarit.
 
 Parametra të dobishëm: `--threshold` (sa i fortë duhet sinjali, default 40), `--tp`, `--sl` (në %), `--horizon` (qirinj), `--fee`, `--risk` (pjesa e kapitalit për tregti), `--long-only`.
 
