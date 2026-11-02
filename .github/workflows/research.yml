@@ -1,0 +1,31 @@
+# Test i strategjive me të dhëna reale historike (Gate funding + Binance qirinj).
+# Ekzekutohet manualisht ose kur ndryshon tonso/research.py.
+name: Real-data strategy test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tonso/research.py"
+      - "tonso/backtest.py"
+      - "tonso/checks.py"
+      - ".github/workflows/research.yml"
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Test
+        shell: bash
+        run: python -m tonso.research | tee research_report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-report
+          path: research_report.txt

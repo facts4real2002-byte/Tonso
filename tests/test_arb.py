@@ -95,5 +95,20 @@ class TestScanner(unittest.TestCase):
         self.assertIn("bad", errors)
 
 
+
+class TestCarryBacktest(unittest.TestCase):
+    def test_carry_math_and_no_lookahead(self):
+        import pandas as pd
+        from tonso.research import carry_backtest
+        idx = pd.date_range("2026-01-01", periods=30, freq="D", tz="UTC")
+        d = pd.DataFrame({"A": 0.002, "B": 0.0005}, index=idx)
+        d.iloc[20:, 0] = -0.002  # A bëhet negativ
+        r = carry_backtest(d, top_k=1)
+        self.assertEqual(r.holdings.iloc[3], "A")        # hyn pas 3 ditë historie
+        self.assertEqual(r.holdings.iloc[20], "A")       # dita 20: ende s'e di që ndryshoi
+        self.assertNotIn("A", r.holdings.iloc[-1])       # pastaj del
+        self.assertGreater(r.daily_ret.min(), -0.01)
+
+
 if __name__ == "__main__":
     unittest.main()
